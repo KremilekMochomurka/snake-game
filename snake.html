@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        #game-board {
+            border: 2px solid #333;
+            background-color: #fff;
+        }
+        
+        #score {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .direction-buttons {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 5px;
+            width: 150px;
+        }
+        
+        .direction-btn {
+            font-size: 20px;
+            padding: 5px 10px;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 500px;
+        }
+        
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 0 10px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        #ai-status {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        #enemy-toggle-container {
+            margin-top: 10px;
+        }
+        
+        #enemy-status {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        #ai-level-container {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+        }
+        
+        #ai-level {
+            margin: 0 10px;
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Snake Game</h1>
+    <canvas id="game-board" width="400" height="400"></canvas>
+    <div id="score">Score: 0</div>
+    <div id="controls">
+        <button id="start-button">Start Game</button>
+        <div class="toggle-container">
+            <span>Manual</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="ai-toggle">
+                <span class="slider"></span>
+            </label>
+            <span>AI</span>
+        </div>
+        <div id="ai-status">AI: Off</div>
+        <div id="ai-level-container">
+            <span>AI Level:</span>
+            <select id="ai-level">
+                <option value="basic">Basic</option>
+                <option value="advanced" selected>Advanced</option>
+                <option value="expert">Expert</option>
+            </select>
+        </div>
+        <div id="enemy-toggle-container" class="toggle-container">
+            <span>No Enemy</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="enemy-toggle">
+                <span class="slider"></span>
+            </label>
+            <span>Enemy</span>
+        </div>
+        <div id="enemy-status">Enemy: Off</div>
+        <div class="direction-buttons">
+            <div></div>
+            <button id="up-button" class="direction-btn">↑</button>
+            <div></div>
+            <button id="left-button" class="direction-btn">←</button>
+            <button id="down-button" class="direction-btn">↓</button>
+            <button id="right-button" class="direction-btn">→</button>
+        </div>
+    </div>
+    <div class="instructions">
+        <p>Use arrow keys, WASD, or the direction buttons to control the snake.</p>
+        <p>Toggle AI mode to let the snake play automatically with different intelligence levels.</p>
+        <p>Toggle Enemy mode to add an enemy snake that will try to kill you.</p>
+        <p>Eat the red food to grow and increase your score.</p>
+        <p>Game ends if you hit the wall, yourself, or the enemy snake.</p>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('start-button');
+        const scoreElement = document.getElementById('score');
+        const upButton = document.getElementById('up-button');
+        const downButton = document.getElementById('down-button');
+        const leftButton = document.getElementById('left-button');
+        const rightButton = document.getElementById('right-button');
+        const aiToggle = document.getElementById('ai-toggle');
+        const aiStatus = document.getElementById('ai-status');
+        const aiLevel = document.getElementById('ai-level');
+        const enemyToggle = document.getElementById('enemy-toggle');
+        const enemyStatus = document.getElementById('enemy-status');
+        
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        
+        let snake = [];
+        let enemySnake = [];
+        let food = {};
+        let dx = 0;
+        let dy = 0;
+        let enemyDx = 0;
+        let enemyDy = 0;
+        let score = 0;
+        let gameRunning = false;
+        let gameSpeed = 150; // milliseconds between updates
+        let enemySpeed = 200; // enemy is slower
+        let gameLoop;
+        let enemyLoop;
+        let aiMode = false;
+        let enemyMode = false;
+        let aiThinkingTime = 100; // ms between AI decisions
+        let aiThinkingLoop;
+        let grid = [];
+        
+        // Initialize game
+        function initGame() {
+            // Reset variables
+            snake = [{ x: 10, y: 10 }]; // Start with a single segment
+            enemySnake = [{ x: 5, y: 5 }]; // Enemy starts in a different position
+            score = 0;
+            dx = 0;
+            dy = 0;
+            enemyDx = 0;
+            enemyDy = 0;
+            gameRunning = true;
+            
+            // Initialize grid for pathfinding
+            initializeGrid();
+            
+            // Update score display
+            scoreElement.textContent = `Score: ${score}`;
+            
+            // Place initial food
+            placeFood();
+            
+            // Start game loop
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(updateGame, gameSpeed);
+            
+            // Start enemy loop if enemy mode is enabled
+            if (enemyMode) {
+                if (enemyLoop) clearInterval(enemyLoop);
+                enemyLoop = setInterval(updateEnemy, enemySpeed);
+            }
+            
+            // Start AI if enabled
+            if (aiMode) {
+                startAI();
+            }
+            
+            // Change button text
+            startButton.textContent = 'Restart Game';
+        }
+        
+        // Initialize grid for pathfinding
+        function initializeGrid() {
+            grid = [];
+            for (let y = 0; y < tileCount; y++) {
+                const row = [];
+                for (let x = 0; x < tileCount; x++) {
+                    row.push({
+                        x: x,
+                        y: y,
+                        isWall: false,
+                        isSnake: false,
+                        isEnemy: false,
+                        dangerLevel: 0,
+                        f: 0, // Total cost
+                        g: 0, // Cost from start
+                        h: 0, // Heuristic (estimated cost to goal)
+                        parent: null
+                    });
+                }
+                grid.push(row);
+            }
+        }
+        
+        // Update grid with current game state
+        function updateGrid() {
+            // Reset grid
+            for (let y = 0; y < tileCount; y++) {
+                for (let x = 0; x < tileCount; x++) {
+                    grid[y][x].isWall = false;
+                    grid[y][x].isSnake = false;
+                    grid[y][x].isEnemy = false;
+                    grid[y][x].dangerLevel = 0;
+                    grid[y][x].f = 0;
+                    grid[y][x].g = 0;
+                    grid[y][x].h = 0;
+                    grid[y][x].parent = null;
+                }
+            }
+            
+            // Mark snake positions
+            for (const segment of snake) {
+                if (segment.x >= 0 && segment.x < tileCount && segment.y >= 0 && segment.y < tileCount) {
+                    grid[segment.y][segment.x].isSnake = true;
+                }
+            }
+            
+            // Mark enemy positions
+            if (enemyMode) {
+                for (const segment of enemySnake) {
+                    if (segment.x >= 0 && segment.x < tileCount && segment.y >= 0 && segment.y < tileCount) {
+                        grid[segment.y][segment.x].isEnemy = true;
+                    }
+                }
+                
+                // Mark danger zones around enemy head (for expert AI)
+                if (aiLevel.value === 'expert' && enemySnake.length > 0) {
+                    const enemyHead = enemySnake[0];
+                    const dangerRadius = 3;
+                    
+                    for (let y = Math.max(0, enemyHead.y - dangerRadius); y <= Math.min(tileCount - 1, enemyHead.y + dangerRadius); y++) {
+                        for (let x = Math.max(0, enemyHead.x - dangerRadius); x <= Math.min(tileCount - 1, enemyHead.x + dangerRadius); x++) {
+                            // Calculate Manhattan distance
+                            const distance = Math.abs(x - enemyHead.x) + Math.abs(y - enemyHead.y);
+                            if (distance <= dangerRadius && !grid[y][x].isSnake && !grid[y][x].isEnemy) {
+                                // Mark as danger zone with decreasing danger based on distance
+                                grid[y][x].dangerLevel = 1 - (distance / (dangerRadius + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Place food at random position
+        function placeFood() {
+            // Generate random position
+            let foodX, foodY;
+            let validPosition = false;
+            
+            while (!validPosition) {
+                foodX = Math.floor(Math.random() * tileCount);
+                foodY = Math.floor(Math.random() * tileCount);
+                
+                // Check if position overlaps with snake
+                validPosition = true;
+                
+                // Check player snake
+                for (let segment of snake) {
+                    if (segment.x === foodX && segment.y === foodY) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                // Check enemy snake
+                if (validPosition && enemyMode) {
+                    for (let segment of enemySnake) {
+                        if (segment.x === foodX && segment.y === foodY) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            food = { x: foodX, y: foodY };
+        }
+        
+        // Update game state
+        function updateGame() {
+            if (!gameRunning) return;
+            
+            // Calculate new head position
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            
+            // Check for collisions with walls or self
+            if (
+                head.x < 0 || head.x >= tileCount || 
+                head.y < 0 || head.y >= tileCount ||
+                checkSnakeCollision(head, snake)
+            ) {
+                gameOver("You hit a wall or yourself!");
+                return;
+            }
+            
+            // Check for collision with enemy snake
+            if (enemyMode && checkEnemyCollision(head)) {
+                gameOver("You were killed by the enemy snake!");
+                return;
+            }
+            
+            // Add new head
+            snake.unshift(head);
+            
+            // Check if food eaten
+            if (head.x === food.x && head.y === food.y) {
+                // Increase score
+                score += 10;
+                scoreElement.textContent = `Score: ${score}`;
+                
+                // Place new food
+                placeFood();
+                
+                // Increase speed slightly every 5 food items
+                if (score % 50 === 0 && gameSpeed > 50) {
+                    gameSpeed -= 10;
+                    clearInterval(gameLoop);
+                    gameLoop = setInterval(updateGame, gameSpeed);
+                }
+            } else {
+                // Remove tail if no food eaten
+                snake.pop();
+            }
+            
+            // Draw everything
+            drawGame();
+        }
+        
+        // Update enemy snake
+        function updateEnemy() {
+            if (!gameRunning || !enemyMode) return;
+            
+            // Enemy AI - try to intercept the player snake
+            const enemyHead = enemySnake[0];
+            const playerHead = snake[0];
+            
+            // Calculate possible moves
+            const possibleMoves = [
+                { dx: 0, dy: -1, direction: 'up' },    // Up
+                { dx: 1, dy: 0, direction: 'right' },  // Right
+                { dx: 0, dy: 1, direction: 'down' },   // Down
+                { dx: -1, dy: 0, direction: 'left' }   // Left
+            ];
+            
+            // Filter out invalid moves (collisions with walls or enemy snake body)
+            const validMoves = possibleMoves.filter(move => {
+                const newX = enemyHead.x + move.dx;
+                const newY = enemyHead.y + move.dy;
+                
+                // Check if move would cause collision with wall
+                if (newX < 0 || newX >= tileCount || newY < 0 || newY >= tileCount) {
+                    return false;
+                }
+                
+                // Check if move would cause collision with enemy snake body
+                for (let i = 0; i < enemySnake.length; i++) {
+                    if (newX === enemySnake[i].x && newY === enemySnake[i].y) {
+                        return false;
+                    }
+                }
+                
+                // Check if move would cause 180-degree turn (can't go directly opposite current direction)
+                if ((move.dx === 1 && enemyDx === -1) || 
+                    (move.dx === -1 && enemyDx === 1) || 
+                    (move.dy === 1 && enemyDy === -1) || 
+                    (move.dy === -1 && enemyDy === 1)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // If no valid moves, just continue in current direction
+            if (validMoves.length === 0) {
+                return;
+            }
+            
+            // Calculate distances to player head for each valid move
+            validMoves.forEach(move => {
+                const newX = enemyHead.x + move.dx;
+                const newY = enemyHead.y + move.dy;
+                move.distanceToPlayer = Math.abs(newX - playerHead.x) + Math.abs(newY - playerHead.y);
+            });
+            
+            // Sort moves by distance to player (ascending)
+            validMoves.sort((a, b) => a.distanceToPlayer - b.distanceToPlayer);
+            
+            // Choose the move that gets closest to player
+            const bestMove = validMoves[0];
+            
+            // Apply the move
+            enemyDx = bestMove.dx;
+            enemyDy = bestMove.dy;
+            
+            // Calculate new head position
+            const newEnemyHead = { x: enemyHead.x + enemyDx, y: enemyHead.y + enemyDy };
+            
+            // Add new head
+            enemySnake.unshift(newEnemyHead);
+            
+            // Check if enemy collided with player snake body
+            for (let i = 1; i < snake.length; i++) {
+                if (newEnemyHead.x === snake[i].x && newEnemyHead.y === snake[i].y) {
+                    // Enemy ate part of player snake
+                    // This is allowed and doesn't end the game
+                    break;
+                }
+            }
+            
+            // Keep enemy snake at a fixed length
+            if (enemySnake.length > 5) {
+                enemySnake.pop();
+            }
+            
+            // Draw everything
+            drawGame();
+        }
+        
+        // Check if head collides with snake body
+        function checkSnakeCollision(head, snakeBody) {
+            for (let i = 1; i < snakeBody.length; i++) {
+                if (head.x === snakeBody[i].x && head.y === snakeBody[i].y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Check if player head collides with enemy snake
+        function checkEnemyCollision(playerHead) {
+            for (let i = 0; i < enemySnake.length; i++) {
+                if (playerHead.x === enemySnake[i].x && playerHead.y === enemySnake[i].y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Game over
+        function gameOver(message) {
+            gameRunning = false;
+            clearInterval(gameLoop);
+            
+            if (enemyLoop) {
+                clearInterval(enemyLoop);
+                enemyLoop = null;
+            }
+            
+            // Stop AI if running
+            if (aiThinkingLoop) {
+                clearInterval(aiThinkingLoop);
+                aiThinkingLoop = null;
+            }
+            
+            // Draw game over text
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = '30px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 30);
+            
+            ctx.font = '16px Arial';
+            ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+            
+            ctx.font = '20px Arial';
+            ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('Press Start to play again', canvas.width / 2, canvas.height / 2 + 80);
+        }
+        
+        // Draw game elements
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw player snake
+            for (let i = 0; i < snake.length; i++) {
+                // Use different color for head
+                if (i === 0) {
+                    ctx.fillStyle = '#2E8B57'; // Sea green for head
+                } else {
+                    ctx.fillStyle = '#3CB371'; // Medium sea green for body
+                }
+                
+                ctx.fillRect(
+                    snake[i].x * gridSize, 
+                    snake[i].y * gridSize, 
+                    gridSize - 1, 
+                    gridSize - 1
+                );
+            }
+            
+            // Draw enemy snake if enabled
+            if (enemyMode) {
+                for (let i = 0; i < enemySnake.length; i++) {
+                    // Use different color for enemy
+                    if (i === 0) {
+                        ctx.fillStyle = '#B22222'; // Firebrick for head
+                    } else {
+                        ctx.fillStyle = '#CD5C5C'; // Indian red for body
+                    }
+                    
+                    ctx.fillRect(
+                        enemySnake[i].x * gridSize, 
+                        enemySnake[i].y * gridSize, 
+                        gridSize - 1, 
+                        gridSize - 1
+                    );
+                }
+            }
+            
+            // Draw food
+            ctx.fillStyle = '#FF4500'; // Orange-red
+            ctx.fillRect(
+                food.x * gridSize, 
+                food.y * gridSize, 
+                gridSize - 1, 
+                gridSize - 1
+            );
+            
+            // Draw grid (optional)
+            ctx.strokeStyle = '#f0f0f0';
+            for (let i = 0; i < tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, canvas.height);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(canvas.width, i * gridSize);
+                ctx.stroke();
+            }
+            
+            // Debug: Draw danger zones (uncomment for debugging)
+            /*
+            if (aiLevel.value === 'expert' && enemyMode) {
+                for (let y = 0; y < tileCount; y++) {
+                    for (let x = 0; x < tileCount; x++) {
+                        if (grid[y][x].dangerLevel > 0) {
+                            ctx.fillStyle = `rgba(255, 0, 0, ${grid[y][x].dangerLevel * 0.3})`;
+                            ctx.fillRect(
+                                x * gridSize, 
+                                y * gridSize, 
+                                gridSize, 
+                                gridSize
+                            );
+                        }
+                    }
+                }
+            }
+            */
+        }
+        
+        // Direction change function
+        function changeDirection(newDx, newDy) {
+            // Only change if not moving in the opposite direction
+            if (gameRunning && !aiMode) {
+                if (newDx !== 0 && dx === 0) { // Horizontal movement
+                    dx = newDx;
+                    dy = 0;
+                } else if (newDy !== 0 && dy === 0) { // Vertical movement
+                    dx = 0;
+                    dy = newDy;
+                }
+            }
+        }
+        
+        // AI functions
+        function startAI() {
+            if (aiThinkingLoop) clearInterval(aiThinkingLoop);
+            aiThinkingLoop = setInterval(aiThink, aiThinkingTime);
+        }
+        
+        function stopAI() {
+            if (aiThinkingLoop) {
+                clearInterval(aiThinkingLoop);
+                aiThinkingLoop = null;
+            }
+        }
+        
+        // A* pathfinding algorithm
+        function findPath(startX, startY, goalX, goalY) {
+            // Update grid with current game state
+            updateGrid();
+            
+            // Initialize open and closed lists
+            const openList = [];
+            const closedList = [];
+            
+            // Add start node to open list
+            openList.push(grid[startY][startX]);
+            
+            // Loop until we find the goal or open list is empty
+            while (openList.length > 0) {
+                // Find node with lowest f score in open list
+                let currentIndex = 0;
+                for (let i = 1; i < openList.length; i++) {
+                    if (openList[i].f < openList[currentIndex].f) {
+                        currentIndex = i;
+                    }
+                }
+                
+                // Get current node
+                const current = openList[currentIndex];
+                
+                // Remove current from open list and add to closed list
+                openList.splice(currentIndex, 1);
+                closedList.push(current);
+                
+                // Check if we reached the goal
+                if (current.x === goalX && current.y === goalY) {
+                    // Reconstruct path
+                    const path = [];
+                    let temp = current;
+                    while (temp.parent) {
+                        path.push({ x: temp.x, y: temp.y });
+                        temp = temp.parent;
+                    }
+                    return path.reverse();
+                }
+                
+                // Get neighbors
+                const neighbors = [];
+                // Up
+                if (current.y > 0) neighbors.push(grid[current.y - 1][current.x]);
+                // Right
+                if (current.x < tileCount - 1) neighbors.push(grid[current.y][current.x + 1]);
+                // Down
+                if (current.y < tileCount - 1) neighbors.push(grid[current.y + 1][current.x]);
+                // Left
+                if (current.x > 0) neighbors.push(grid[current.y][current.x - 1]);
+                
+                // Process neighbors
+                for (const neighbor of neighbors) {
+                    // Skip if in closed list or is obstacle
+                    if (closedList.includes(neighbor) || neighbor.isSnake || neighbor.isEnemy) {
+                        continue;
+                    }
+                    
+                    // Calculate g score (cost from start)
+                    const gScore = current.g + 1;
+                    
+                    // Check if neighbor is in open list
+                    const inOpenList = openList.includes(neighbor);
+                    
+                    // If not in open list or better g score
+                    if (!inOpenList || gScore < neighbor.g) {
+                        // Update neighbor
+                        neighbor.g = gScore;
+                        neighbor.h = Math.abs(neighbor.x - goalX) + Math.abs(neighbor.y - goalY);
+                        
+                        // Add danger factor for expert AI
+                        if (aiLevel.value === 'expert' && neighbor.dangerLevel > 0) {
+                            neighbor.h += neighbor.dangerLevel * 10; // Make dangerous cells less desirable
+                        }
+                        
+                        neighbor.f = neighbor.g + neighbor.h;
+                        neighbor.parent = current;
+                        
+                        // Add to open list if not already there
+                        if (!inOpenList) {
+                            openList.push(neighbor);
+                        }
+                    }
+                }
+            }
+            
+            // No path found
+            return null;
+        }
+        
+        // Check if a move would lead to being trapped
+        function wouldBeTrappped(newX, newY) {
+            // Create a temporary grid to simulate the move
+            const tempGrid = JSON.parse(JSON.stringify(grid));
+            
+            // Mark the new position as occupied
+            if (newX >= 0 && newX < tileCount && newY >= 0 && newY < tileCount) {
+                tempGrid[newY][newX].isSnake = true;
+            }
+            
+            // Count available cells after the move
+            let availableCells = 0;
+            const visited = new Set();
+            const queue = [{ x: newX, y: newY }];
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const key = `${current.x},${current.y}`;
+                
+                if (visited.has(key)) continue;
+                visited.add(key);
+                
+                // Check neighbors
+                const neighbors = [
+                    { x: current.x, y: current.y - 1 }, // Up
+                    { x: current.x + 1, y: current.y }, // Right
+                    { x: current.x, y: current.y + 1 }, // Down
+                    { x: current.x - 1, y: current.y }  // Left
+                ];
+                
+                for (const neighbor of neighbors) {
+                    if (
+                        neighbor.x >= 0 && neighbor.x < tileCount &&
+                        neighbor.y >= 0 && neighbor.y < tileCount &&
+                        !tempGrid[neighbor.y][neighbor.x].isSnake &&
+                        !tempGrid[neighbor.y][neighbor.x].isEnemy
+                    ) {
+                        availableCells++;
+                        queue.push(neighbor);
+                    }
+                }
+            }
+            
+            // If there are fewer available cells than the snake length, it might get trapped
+            return availableCells < snake.length * 2;
+        }
+        
+        // Basic AI - just go towards food
+        function basicAI() {
+            if (!gameRunning) return;
+            
+            // Get current head position
+            const head = snake[0];
+            
+            // Calculate possible moves
+            const possibleMoves = [
+                { dx: 0, dy: -1, direction: 'up' },    // Up
+                { dx: 1, dy: 0, direction: 'right' },  // Right
+                { dx: 0, dy: 1, direction: 'down' },   // Down
+                { dx: -1, dy: 0, direction: 'left' }   // Left
+            ];
+            
+            // Filter out invalid moves (collisions with walls or snake body)
+            const validMoves = possibleMoves.filter(move => {
+                const newX = head.x + move.dx;
+                const newY = head.y + move.dy;
+                
+                // Check if move would cause collision with wall
+                if (newX < 0 || newX >= tileCount || newY < 0 || newY >= tileCount) {
+                    return false;
+                }
+                
+                // Check if move would cause collision with snake body
+                for (let i = 0; i < snake.length; i++) {
+                    if (newX === snake[i].x && newY === snake[i].y) {
+                        return false;
+                    }
+                }
+                
+                // Check if move would cause collision with enemy snake
+                if (enemyMode) {
+                    for (let i = 0; i < enemySnake.length; i++) {
+                        if (newX === enemySnake[i].x && newY === enemySnake[i].y) {
+                            return false;
+                        }
+                    }
+                }
+                
+                // Check if move would cause 180-degree turn (can't go directly opposite current direction)
+                if ((move.dx === 1 && dx === -1) || 
+                    (move.dx === -1 && dx === 1) || 
+                    (move.dy === 1 && dy === -1) || 
+                    (move.dy === -1 && dy === 1)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // If no valid moves, just continue in current direction
+            if (validMoves.length === 0) {
+                return;
+            }
+            
+            // Calculate distances to food for each valid move
+            validMoves.forEach(move => {
+                const newX = head.x + move.dx;
+                const newY = head.y + move.dy;
+                move.distanceToFood = Math.abs(newX - food.x) + Math.abs(newY - food.y);
+            });
+            
+            // Sort moves by distance to food (ascending)
+            validMoves.sort((a, b) => a.distanceToFood - b.distanceToFood);
+            
+            // Choose the move that gets closest to food
+            const bestMove = validMoves[0];
+            
+            // Apply the move
+            dx = bestMove.dx;
+            dy = bestMove.dy;
+        }
+        
+        // Advanced AI - uses pathfinding to find optimal path to food
+        function advancedAI() {
+            if (!gameRunning) return;
+            
+            // Get current head position
+            const head = snake[0];
+            
+            // Find path to food using A* algorithm
+            const path = findPath(head.x, head.y, food.x, food.y);
+            
+            // If path found, move along it
+            if (path && path.length > 0) {
+                const nextStep = path[0];
+                dx = nextStep.x - head.x;
+                dy = nextStep.y - head.y;
+            } else {
+                // If no path found, use basic AI as fallback
+                basicAI();
+            }
+        }
+        
+        // Expert AI - uses advanced pathfinding with additional strategies
+        function expertAI() {
+            if (!gameRunning) return;
+            
+            // Get current head position
+            const head = snake[0];
+            
+            // Update grid with current game state
+            updateGrid();
+            
+            // Calculate possible moves
+            const possibleMoves = [
+                { dx: 0, dy: -1, direction: 'up' },    // Up
+                { dx: 1, dy: 0, direction: 'right' },  // Right
+                { dx: 0, dy: 1, direction: 'down' },   // Down
+                { dx: -1, dy: 0, direction: 'left' }   // Left
+            ];
+            
+            // Filter out invalid moves (collisions with walls or snake body)
+            const validMoves = possibleMoves.filter(move => {
+                const newX = head.x + move.dx;
+                const newY = head.y + move.dy;
+                
+                // Check if move would cause collision with wall
+                if (newX < 0 || newX >= tileCount || newY < 0 || newY >= tileCount) {
+                    return false;
+                }
+                
+                // Check if move would cause collision with snake body
+                for (let i = 0; i < snake.length; i++) {
+                    if (newX === snake[i].x && newY === snake[i].y) {
+                        return false;
+                    }
+                }
+                
+                // Check if move would cause collision with enemy snake
+                if (enemyMode) {
+                    for (let i = 0; i < enemySnake.length; i++) {
+                        if (newX === enemySnake[i].x && newY === enemySnake[i].y) {
+                            return false;
+                        }
+                    }
+                }
+                
+                // Check if move would cause 180-degree turn (can't go directly opposite current direction)
+                if ((move.dx === 1 && dx === -1) || 
+                    (move.dx === -1 && dx === 1) || 
+                    (move.dy === 1 && dy === -1) || 
+                    (move.dy === -1 && dy === 1)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // If no valid moves, just continue in current direction
+            if (validMoves.length === 0) {
+                return;
+            }
+            
+            // Score each move based on multiple factors
+            validMoves.forEach(move => {
+                const newX = head.x + move.dx;
+                const newY = head.y + move.dy;
+                
+                // Base score - distance to food (lower is better)
+                move.score = 0;
+                
+                // Check if this move would lead to being trapped
+                if (wouldBeTrappped(newX, newY)) {
+                    move.score += 100; // Heavy penalty for moves that might trap the snake
+                }
+                
+                // Find path to food from this position
+                const path = findPath(newX, newY, food.x, food.y);
+                if (path) {
+                    move.score -= 50; // Bonus for moves that have a path to food
+                    move.score += path.length; // Shorter paths are better
+                } else {
+                    move.score += 50; // Penalty for moves that don't have a path to food
+                }
+                
+                // Consider danger zones (enemy proximity)
+                if (enemyMode && grid[newY][newX].dangerLevel > 0) {
+                    move.score += grid[newY][newX].dangerLevel * 75; // Penalty for dangerous areas
+                }
+                
+                // Consider space available after move
+                // (This is a simplified version of the flood fill algorithm in wouldBeTrappped)
+                let spaceAvailable = 0;
+                for (let y = 0; y < tileCount; y++) {
+                    for (let x = 0; x < tileCount; x++) {
+                        if (!grid[y][x].isSnake && !grid[y][x].isEnemy) {
+                            spaceAvailable++;
+                        }
+                    }
+                }
+                move.score -= spaceAvailable * 0.1; // Bonus for moves that lead to more open space
+            });
+            
+            // Sort moves by score (ascending - lower is better)
+            validMoves.sort((a, b) => a.score - b.score);
+            
+            // Choose the move with the best score
+            const bestMove = validMoves[0];
+            
+            // Apply the move
+            dx = bestMove.dx;
+            dy = bestMove.dy;
+        }
+        
+        // Main AI thinking function
+        function aiThink() {
+            if (!gameRunning || !aiMode) return;
+            
+            // Choose AI algorithm based on level
+            switch (aiLevel.value) {
+                case 'basic':
+                    basicAI();
+                    break;
+                case 'advanced':
+                    advancedAI();
+                    break;
+                case 'expert':
+                    expertAI();
+                    break;
+                default:
+                    basicAI();
+            }
+        }
+        
+        // Toggle AI mode
+        function toggleAI() {
+            aiMode = aiToggle.checked;
+            aiStatus.textContent = `AI: ${aiMode ? 'On' : 'Off'}`;
+            
+            if (aiMode && gameRunning) {
+                startAI();
+            } else {
+                stopAI();
+            }
+            
+            // Enable/disable direction buttons based on AI mode
+            const directionButtons = document.querySelectorAll('.direction-btn');
+            directionButtons.forEach(button => {
+                button.disabled = aiMode;
+                button.style.opacity = aiMode ? '0.5' : '1';
+            });
+        }
+        
+        // Toggle Enemy mode
+        function toggleEnemy() {
+            enemyMode = enemyToggle.checked;
+            enemyStatus.textContent = `Enemy: ${enemyMode ? 'On' : 'Off'}`;
+            
+            if (enemyMode && gameRunning) {
+                // Start enemy loop
+                if (enemyLoop) clearInterval(enemyLoop);
+                enemyLoop = setInterval(updateEnemy, enemySpeed);
+            } else if (!enemyMode && enemyLoop) {
+                // Stop enemy loop
+                clearInterval(enemyLoop);
+                enemyLoop = null;
+            }
+            
+            // Redraw game
+            drawGame();
+        }
+        
+        // Handle keyboard input
+        document.addEventListener('keydown', function(event) {
+            // Only respond to input if game is running and not in AI mode
+            if (!gameRunning || aiMode) return;
+            
+            // Prevent default behavior for arrow keys
+            if ([37, 38, 39, 40, 65, 87, 68, 83].includes(event.keyCode)) {
+                event.preventDefault();
+            }
+            
+            // Handle direction change
+            switch (event.keyCode) {
+                // Left Arrow or A
+                case 37:
+                case 65:
+                    changeDirection(-1, 0);
+                    break;
+                // Up Arrow or W
+                case 38:
+                case 87:
+                    changeDirection(0, -1);
+                    break;
+                // Right Arrow or D
+                case 39:
+                case 68:
+                    changeDirection(1, 0);
+                    break;
+                // Down Arrow or S
+                case 40:
+                case 83:
+                    changeDirection(0, 1);
+                    break;
+            }
+        });
+        
+        // Direction button event listeners
+        upButton.addEventListener('click', function() {
+            changeDirection(0, -1);
+        });
+        
+        downButton.addEventListener('click', function() {
+            changeDirection(0, 1);
+        });
+        
+        leftButton.addEventListener('click', function() {
+            changeDirection(-1, 0);
+        });
+        
+        rightButton.addEventListener('click', function() {
+            changeDirection(1, 0);
+        });
+        
+        // AI toggle event listener
+        aiToggle.addEventListener('change', toggleAI);
+        
+        // Enemy toggle event listener
+        enemyToggle.addEventListener('change', toggleEnemy);
+        
+        // Start/restart game when button clicked
+        startButton.addEventListener('click', initGame);
+        
+        // Initial draw
+        drawGame();
+    </script>
+</body>
+</html>
